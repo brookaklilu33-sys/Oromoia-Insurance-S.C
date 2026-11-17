@@ -74,8 +74,10 @@ googleProvider.setCustomParameters({
   prompt: 'select_account'
 });
 
+let connectionTested = false;
 async function testFirestoreConnection(): Promise<void> {
-  if (typeof window === 'undefined' || !isFirebaseConfigured()) return;
+  if (connectionTested || typeof window === 'undefined' || !isFirebaseConfigured()) return;
+  connectionTested = true;
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {

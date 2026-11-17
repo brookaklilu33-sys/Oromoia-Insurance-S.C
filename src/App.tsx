@@ -1,6 +1,5 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { store, ADMIN_PRIVILEGED_ROLES } from './services/store';
-import { subscribeToAuthSession, completeRedirectSignIn } from './services/authService';
 import { RoleSwitcher } from './components/RoleSwitcher';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
@@ -98,44 +97,123 @@ export default function App() {
     return new URLSearchParams();
   });
 
+const AUTH_IMMEDIATE_ROUTES = new Set([
+  '/login',
+  '/register',
+  '/onboarding',
+  '/account-status',
+  '/admin-auth',
+  '/admin-login',
+  '/portal',
+  '/operator',
+  '/staff',
+  '/admin'
+]);
+
+function hasPersistedAuthHint(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    if (window.sessionStorage.getItem('oic_pending_google_redirect') === '1') return true;
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const k = window.localStorage.key(i);
+      if (k && k.startsWith('firebase:authUser:')) return true;
+    }
+  } catch {
+    // Ignore storage access errors
+  }
+  return false;
+}
+
   const [authReady, setAuthReady] = useState(false);
+  const authStartedRef = useRef(false);
+  const authUnsubscribeRef = useRef<(() => void) | null>(null);
+  const appMountedRef = useRef(true);
 
   const [, setTick] = useState(0);
   useEffect(() => {
     return store.subscribe(() => setTick((t) => t + 1));
   }, []);
 
-  useEffect(() => {
-    let mounted = true;
-    const safetyTimer = setTimeout(() => {
-      if (mounted) setAuthReady(true);
-    }, 500);
+  const ensureAuthInitialized = () => {
+    if (authStartedRef.current) return;
+    authStartedRef.current = true;
 
     const existingUser = store.getCurrentUser();
     if (existingUser?.accountType === 'customer') {
       void import('./pages/customer/CustomerPortal').catch(() => {});
     }
 
-    completeRedirectSignIn()
-      .then((res) => {
-        if (mounted && res?.success && res.destination) {
-          navigate(res.destination);
-        }
-      })
-      .catch(() => {});
+    const safetyTimer = setTimeout(() => {
+      if (appMountedRef.current) setAuthReady(true);
+    }, 800);
 
-    const unsubscribe = subscribeToAuthSession(() => {
-      if (mounted) {
+    import('./services/authService')
+      .then(({ subscribeToAuthSession, completeRedirectSignIn }) => {
+        if (!appMountedRef.current) return;
+
+        completeRedirectSignIn()
+          .then((res) => {
+            if (appMountedRef.current && res?.success && res.destination) {
+              navigate(res.destination);
+            }
+          })
+          .catch(() => {});
+
+        authUnsubscribeRef.current = subscribeToAuthSession(() => {
+          if (appMountedRef.current) {
+            clearTimeout(safetyTimer);
+            setAuthReady(true);
+          }
+        });
+      })
+      .catch(() => {
         clearTimeout(safetyTimer);
-        setAuthReady(true);
+        if (appMountedRef.current) setAuthReady(true);
+      });
+  };
+
+  useEffect(() => {
+    appMountedRef.current = true;
+    const needsImmediateAuth =
+      AUTH_IMMEDIATE_ROUTES.has(currentRoute) || Boolean(store.getCurrentUser()) || hasPersistedAuthHint();
+
+    let idleHandle: number | undefined;
+    let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
+
+    if (needsImmediateAuth) {
+      ensureAuthInitialized();
+    } else {
+      setAuthReady(true);
+      const w = window as Window & {
+        requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+        cancelIdleCallback?: (id: number) => void;
+      };
+      if (typeof w.requestIdleCallback === 'function') {
+        idleHandle = w.requestIdleCallback(() => ensureAuthInitialized(), { timeout: 2500 });
+      } else {
+        fallbackTimer = setTimeout(() => ensureAuthInitialized(), 1600);
       }
-    });
+    }
+
     return () => {
-      mounted = false;
-      clearTimeout(safetyTimer);
-      unsubscribe();
+      appMountedRef.current = false;
+      if (idleHandle !== undefined) {
+        const w = window as Window & { cancelIdleCallback?: (id: number) => void };
+        w.cancelIdleCallback?.(idleHandle);
+      }
+      if (fallbackTimer !== undefined) {
+        clearTimeout(fallbackTimer);
+      }
+      authUnsubscribeRef.current?.();
+      authUnsubscribeRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (AUTH_IMMEDIATE_ROUTES.has(currentRoute) && !authStartedRef.current) {
+      ensureAuthInitialized();
+    }
+  }, [currentRoute]);
 
   const navigate = (path: string) => {
     if (typeof window !== 'undefined') {

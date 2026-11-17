@@ -131,7 +131,6 @@ class OICStore {
 
   constructor() {
     this.purgeLegacyAicKeys();
-    this.initializeIfEmpty();
   }
 
   private purgeLegacyAicKeys() {
@@ -173,72 +172,6 @@ class OICStore {
   private writeCached<T>(key: string, value: T): void {
     this.cache.set(key, value);
     safeStorage.setItem(key, JSON.stringify(value));
-  }
-
-  private initializeIfEmpty() {
-    if (!safeStorage.getItem(STORAGE_KEYS.PRODUCTS)) {
-      safeStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(SEED_PRODUCTS));
-    }
-    if (!safeStorage.getItem(STORAGE_KEYS.BRANCHES)) {
-      safeStorage.setItem(STORAGE_KEYS.BRANCHES, JSON.stringify(SEED_BRANCHES));
-    }
-    if (!safeStorage.getItem(STORAGE_KEYS.DEPARTMENTS)) {
-      safeStorage.setItem(STORAGE_KEYS.DEPARTMENTS, JSON.stringify(SEED_DEPARTMENTS));
-    }
-    if (!safeStorage.getItem(STORAGE_KEYS.ADMIN_DOCUMENTS)) {
-      safeStorage.setItem(STORAGE_KEYS.ADMIN_DOCUMENTS, JSON.stringify(SEED_ADMIN_DOCUMENTS));
-    }
-    if (!safeStorage.getItem(STORAGE_KEYS.CUSTOMERS)) {
-      safeStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(SEED_CUSTOMERS));
-    }
-    if (!safeStorage.getItem(STORAGE_KEYS.OPERATORS)) {
-      safeStorage.setItem(STORAGE_KEYS.OPERATORS, JSON.stringify(SEED_OPERATORS));
-    }
-    if (!safeStorage.getItem(STORAGE_KEYS.STAFF)) {
-      safeStorage.setItem(STORAGE_KEYS.STAFF, JSON.stringify(SEED_STAFF));
-    }
-    if (!safeStorage.getItem(STORAGE_KEYS.AGENTS)) {
-      safeStorage.setItem(STORAGE_KEYS.AGENTS, JSON.stringify(SEED_AGENTS));
-    }
-    if (!safeStorage.getItem(STORAGE_KEYS.BROKERS)) {
-      safeStorage.setItem(STORAGE_KEYS.BROKERS, JSON.stringify(SEED_BROKERS));
-    }
-    if (!safeStorage.getItem(STORAGE_KEYS.POLICIES)) {
-      safeStorage.setItem(STORAGE_KEYS.POLICIES, JSON.stringify(SEED_POLICIES));
-    }
-    if (!safeStorage.getItem(STORAGE_KEYS.APPLICATIONS)) {
-      safeStorage.setItem(STORAGE_KEYS.APPLICATIONS, JSON.stringify(SEED_APPLICATIONS));
-    }
-    if (!safeStorage.getItem(STORAGE_KEYS.CLAIMS)) {
-      safeStorage.setItem(STORAGE_KEYS.CLAIMS, JSON.stringify(SEED_CLAIMS));
-    }
-    if (!safeStorage.getItem(STORAGE_KEYS.PAYMENTS)) {
-      safeStorage.setItem(STORAGE_KEYS.PAYMENTS, JSON.stringify(SEED_PAYMENTS));
-    }
-    if (!safeStorage.getItem(STORAGE_KEYS.TRAINING_COURSES)) {
-      safeStorage.setItem(STORAGE_KEYS.TRAINING_COURSES, JSON.stringify(SEED_TRAINING_COURSES));
-    }
-    if (!safeStorage.getItem(STORAGE_KEYS.EMAIL_TEMPLATES)) {
-      safeStorage.setItem(STORAGE_KEYS.EMAIL_TEMPLATES, JSON.stringify(SEED_EMAIL_TEMPLATES));
-    }
-    if (!safeStorage.getItem(STORAGE_KEYS.AUDIT_LOGS)) {
-      safeStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify(SEED_AUDIT_LOGS));
-    }
-    if (!safeStorage.getItem(STORAGE_KEYS.EMAIL_JOBS)) {
-      safeStorage.setItem(STORAGE_KEYS.EMAIL_JOBS, JSON.stringify([]));
-    }
-    if (!safeStorage.getItem(STORAGE_KEYS.SUBSCRIBERS)) {
-      safeStorage.setItem(STORAGE_KEYS.SUBSCRIBERS, JSON.stringify(SEED_SUBSCRIBERS));
-    }
-    if (!safeStorage.getItem(STORAGE_KEYS.REPORTS)) {
-      safeStorage.setItem(STORAGE_KEYS.REPORTS, JSON.stringify(SEED_REPORTS));
-    }
-    if (!safeStorage.getItem(STORAGE_KEYS.NEWS)) {
-      safeStorage.setItem(STORAGE_KEYS.NEWS, JSON.stringify(SEED_NEWS));
-    }
-    if (!safeStorage.getItem(STORAGE_KEYS.CMS_CONFIG)) {
-      safeStorage.setItem(STORAGE_KEYS.CMS_CONFIG, JSON.stringify(SEED_CMS_CONFIG));
-    }
   }
 
   public subscribe(listener: () => void): () => void {
@@ -379,7 +312,7 @@ class OICStore {
 
   // --- PRODUCTS ---
   public getProducts(): InsuranceProduct[] {
-    return this.readCached<InsuranceProduct[]>(STORAGE_KEYS.PRODUCTS, []);
+    return this.readCached<InsuranceProduct[]>(STORAGE_KEYS.PRODUCTS, SEED_PRODUCTS);
   }
 
   public getPublishedProducts(): InsuranceProduct[] {
@@ -446,7 +379,7 @@ class OICStore {
 
   // --- OFFICIAL DOCUMENTS ---
   public getAdminDocuments(): AdminUploadedDocument[] {
-    return this.readCached<AdminUploadedDocument[]>(STORAGE_KEYS.ADMIN_DOCUMENTS, []);
+    return this.readCached<AdminUploadedDocument[]>(STORAGE_KEYS.ADMIN_DOCUMENTS, SEED_ADMIN_DOCUMENTS);
   }
 
   public getDocumentsForProduct(productId: string): AdminUploadedDocument[] {
@@ -495,7 +428,7 @@ class OICStore {
 
   // --- CUSTOMERS ---
   public getCustomers(): CustomerProfile[] {
-    return this.readCached<CustomerProfile[]>(STORAGE_KEYS.CUSTOMERS, []);
+    return this.readCached<CustomerProfile[]>(STORAGE_KEYS.CUSTOMERS, SEED_CUSTOMERS);
   }
 
   public getCustomerById(id: string): CustomerProfile | undefined {
@@ -569,15 +502,15 @@ class OICStore {
   }
 
   public getOperators(): OperatorProfile[] {
-    return this.readCached<OperatorProfile[]>(STORAGE_KEYS.OPERATORS, []);
+    return this.readCached<OperatorProfile[]>(STORAGE_KEYS.OPERATORS, SEED_OPERATORS);
   }
 
   public getStaff(): StaffProfile[] {
-    return this.readCached<StaffProfile[]>(STORAGE_KEYS.STAFF, []);
+    return this.readCached<StaffProfile[]>(STORAGE_KEYS.STAFF, SEED_STAFF);
   }
 
   public getAgents(): AgentProfile[] {
-    return this.readCached<AgentProfile[]>(STORAGE_KEYS.AGENTS, []);
+    return this.readCached<AgentProfile[]>(STORAGE_KEYS.AGENTS, SEED_AGENTS);
   }
 
   public saveAgent(agent: AgentProfile): void {
@@ -594,7 +527,7 @@ class OICStore {
   }
 
   public getBrokers(): BrokerProfile[] {
-    return this.readCached<BrokerProfile[]>(STORAGE_KEYS.BROKERS, []);
+    return this.readCached<BrokerProfile[]>(STORAGE_KEYS.BROKERS, SEED_BROKERS);
   }
 
   public saveBroker(broker: BrokerProfile): void {
@@ -824,7 +757,7 @@ class OICStore {
 
   // --- APPLICATIONS ---
   public getApplications(): InsuranceApplication[] {
-    return this.readCached<InsuranceApplication[]>(STORAGE_KEYS.APPLICATIONS, []);
+    return this.readCached<InsuranceApplication[]>(STORAGE_KEYS.APPLICATIONS, SEED_APPLICATIONS);
   }
 
   public getApplicationById(id: string): InsuranceApplication | undefined {
@@ -846,7 +779,7 @@ class OICStore {
 
   // --- POLICIES ---
   public getPolicies(): InsurancePolicy[] {
-    return this.readCached<InsurancePolicy[]>(STORAGE_KEYS.POLICIES, []);
+    return this.readCached<InsurancePolicy[]>(STORAGE_KEYS.POLICIES, SEED_POLICIES);
   }
 
   public getPolicyById(id: string): InsurancePolicy | undefined {
@@ -1005,7 +938,7 @@ class OICStore {
 
   // --- TRAINING COURSES & PROGRESS ---
   public getTrainingCourses(): TrainingCourse[] {
-    return this.readCached<TrainingCourse[]>(STORAGE_KEYS.TRAINING_COURSES, []);
+    return this.readCached<TrainingCourse[]>(STORAGE_KEYS.TRAINING_COURSES, SEED_TRAINING_COURSES);
   }
 
   public getTrainingProgress(userId: string): TrainingProgress[] {
@@ -1027,7 +960,7 @@ class OICStore {
 
   // --- EMAIL AUTOMATION & JOBS ---
   public getEmailTemplates(): EmailTemplate[] {
-    return this.readCached<EmailTemplate[]>(STORAGE_KEYS.EMAIL_TEMPLATES, []);
+    return this.readCached<EmailTemplate[]>(STORAGE_KEYS.EMAIL_TEMPLATES, SEED_EMAIL_TEMPLATES);
   }
 
   public getEmailJobs(): EmailJob[] {
@@ -1060,7 +993,7 @@ class OICStore {
 
   // --- PAYMENTS & CHAPA ---
   public getPaymentAttempts(): PaymentAttempt[] {
-    return this.readCached<PaymentAttempt[]>(STORAGE_KEYS.PAYMENTS, []);
+    return this.readCached<PaymentAttempt[]>(STORAGE_KEYS.PAYMENTS, SEED_PAYMENTS);
   }
 
   public createPaymentAttempt(attempt: PaymentAttempt): void {
@@ -1109,7 +1042,7 @@ class OICStore {
 
   // --- CLAIMS ---
   public getClaims(): InsuranceClaim[] {
-    return this.readCached<InsuranceClaim[]>(STORAGE_KEYS.CLAIMS, []);
+    return this.readCached<InsuranceClaim[]>(STORAGE_KEYS.CLAIMS, SEED_CLAIMS);
   }
 
   public saveClaim(claim: InsuranceClaim): void {
@@ -1127,7 +1060,7 @@ class OICStore {
 
   // --- REPORTS ---
   public getReports(): BusinessReport[] {
-    return this.readCached<BusinessReport[]>(STORAGE_KEYS.REPORTS, []);
+    return this.readCached<BusinessReport[]>(STORAGE_KEYS.REPORTS, SEED_REPORTS);
   }
 
   public saveReport(report: BusinessReport): void {
@@ -1213,7 +1146,7 @@ class OICStore {
 
   // --- AUDIT LOGS ---
   public getAuditLogs(): AuditLogEntry[] {
-    return this.readCached<AuditLogEntry[]>(STORAGE_KEYS.AUDIT_LOGS, []);
+    return this.readCached<AuditLogEntry[]>(STORAGE_KEYS.AUDIT_LOGS, SEED_AUDIT_LOGS);
   }
 
   public logAudit(entry: Omit<AuditLogEntry, 'auditId' | 'timestamp'> & { auditId?: string; timestamp?: string }): void {
@@ -1229,7 +1162,7 @@ class OICStore {
 
   // --- NEWSLETTER SUBSCRIBERS ---
   public getSubscribers(): NewsletterSubscriber[] {
-    return this.readCached<NewsletterSubscriber[]>(STORAGE_KEYS.SUBSCRIBERS, []);
+    return this.readCached<NewsletterSubscriber[]>(STORAGE_KEYS.SUBSCRIBERS, SEED_SUBSCRIBERS);
   }
 
   public addSubscriber(
@@ -1240,14 +1173,19 @@ class OICStore {
   ): { success: boolean; message: string; subscriber?: NewsletterSubscriber } {
     const cleanEmail = email.trim().toLowerCase();
     const subscribers = [...this.getSubscribers()];
-    const existing = subscribers.find((s) => s.email.toLowerCase() === cleanEmail);
-    if (existing) {
+    const existingIdx = subscribers.findIndex((s) => s.email.toLowerCase() === cleanEmail);
+    if (existingIdx >= 0) {
+      const existing = subscribers[existingIdx];
       if (existing.status === 'unsubscribed') {
-        existing.status = 'active';
-        existing.subscribedAt = new Date().toISOString();
+        const reactivated: NewsletterSubscriber = {
+          ...existing,
+          status: 'active',
+          subscribedAt: new Date().toISOString()
+        };
+        subscribers[existingIdx] = reactivated;
         this.writeCached(STORAGE_KEYS.SUBSCRIBERS, subscribers);
         this.notify();
-        return { success: true, message: 'Welcome back! Your subscription has been reactivated.', subscriber: existing };
+        return { success: true, message: 'Welcome back! Your subscription has been reactivated.', subscriber: reactivated };
       }
       return { success: false, message: 'This email is already subscribed to Oromia Insurance S.C. updates.' };
     }

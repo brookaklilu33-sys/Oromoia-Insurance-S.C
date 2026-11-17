@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 export function getCategoryCoverImage(category?: string, customHeroImage?: string): string {
   if (customHeroImage && customHeroImage.trim().length > 0) {
@@ -29,6 +29,14 @@ export function getPosterImageUrl(src: string): string {
   return src || '/assets/oic/hero_homepage.png';
 }
 
+export function toWebpAssetPath(src: string): string | null {
+  if (!src || !src.startsWith('/assets/oic/')) return null;
+  if (/\.(jpe?g|png)(\?.*)?$/i.test(src)) {
+    return src.replace(/\.(jpe?g|png)(\?.*)?$/i, '.webp$2');
+  }
+  return null;
+}
+
 interface ResponsiveImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   src: string;
   alt: string;
@@ -50,18 +58,28 @@ export const ResponsiveImage: React.FC<ResponsiveImageProps> = ({
   height,
   ...rest
 }) => {
+  const imgRef = useRef<HTMLImageElement | null>(null);
   const [loaded, setLoaded] = useState(priority);
+  const webpSrc = toWebpAssetPath(src);
+
+  useEffect(() => {
+    if (priority || imgRef.current?.complete) {
+      setLoaded(true);
+    }
+  }, [src, priority]);
 
   return (
     <picture className={pictureClassName}>
+      {webpSrc && <source type="image/webp" srcSet={webpSrc} sizes={sizes} />}
       <img
+        ref={imgRef}
         src={src}
         sizes={sizes}
         alt={alt}
         width={width}
         height={height}
         loading={priority ? 'eager' : 'lazy'}
-        decoding="async"
+        decoding={priority ? 'sync' : 'async'}
         fetchPriority={priority ? 'high' : 'auto'}
         onLoad={() => setLoaded(true)}
         onError={(e) => {
@@ -74,7 +92,7 @@ export const ResponsiveImage: React.FC<ResponsiveImageProps> = ({
           }
         }}
         className={`${className} ${
-          priority ? '' : `transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`
+          priority ? '' : `transition-opacity duration-200 ${loaded ? 'opacity-100' : 'opacity-0'}`
         }`}
         {...rest}
       />

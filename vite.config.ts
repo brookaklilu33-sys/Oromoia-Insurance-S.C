@@ -55,9 +55,9 @@ export default defineConfig(() => {
           clientsClaim: true,
           skipWaiting: true,
           ignoreURLParametersMatching: [/^v$/],
-          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
-          globIgnores: ['**/assets/oic/hero_*', '**/assets/oic/news_*', '**/assets/oic/board/*', '**/assets/oic/executives/*'],
+          maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff,woff2}'],
+          globIgnores: ['**/assets/oic/hero_*', '**/assets/oic/news_*', '**/assets/oic/board/*', '**/assets/oic/executives/*', '**/assets/oic/cat_*'],
           navigateFallback: '/index.html',
           navigateFallbackDenylist: [/^\/__/, /^\/api/, /firebaseapp\.com/, /googleapis\.com/],
           runtimeCaching: [
@@ -101,9 +101,9 @@ export default defineConfig(() => {
               urlPattern: /\/assets\/.*\.(?:jpg|jpeg|png|svg|webp)$/i,
               handler: 'StaleWhileRevalidate',
               options: {
-                cacheName: 'oic-static-images-v1',
+                cacheName: 'oic-static-images-v2',
                 expiration: {
-                  maxEntries: 120,
+                  maxEntries: 200,
                   maxAgeSeconds: 60 * 60 * 24 * 30
                 },
                 cacheableResponse: {
@@ -151,6 +151,9 @@ export default defineConfig(() => {
             }
             if (id.includes('node_modules/lucide-react')) {
               return 'icons-vendor';
+            }
+            if (id.includes('node_modules/motion') || id.includes('node_modules/framer-motion')) {
+              return 'motion-vendor';
             }
           }
         }

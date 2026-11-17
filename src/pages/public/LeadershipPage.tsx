@@ -17,6 +17,7 @@ import {
   Phone,
   AlertCircle
 } from 'lucide-react';
+import { ResponsiveImage } from '../../components/ResponsiveImage';
 
 interface LeadershipPageProps {
   navigate: (route: string) => void;
@@ -150,16 +151,15 @@ export const LeadershipPage: React.FC<LeadershipPageProps> = ({ navigate, initia
                   className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-xl hover:border-[#006B6E]/40 transition-all group flex flex-col items-center text-center space-y-3 cursor-pointer"
                 >
                   <div className="relative w-full aspect-square max-w-[200px] rounded-2xl overflow-hidden bg-slate-100 border border-slate-200">
-                    <img
+                    <ResponsiveImage
                       src={member.photo}
                       alt={member.name}
+                      sizes="200px"
                       className="w-full h-full object-cover object-top"
-                      loading="lazy"
-                      decoding="async"
-                      onError={(e) => {
+                      onFallbackError={(e) => {
                         const t = e.currentTarget;
                         t.style.display = 'none';
-                        const fb = t.parentElement?.querySelector('.fallback-initials');
+                        const fb = t.closest('div')?.querySelector('.fallback-initials');
                         if (fb) fb.classList.remove('hidden');
                       }}
                     />
@@ -208,10 +208,10 @@ export const LeadershipPage: React.FC<LeadershipPageProps> = ({ navigate, initia
                     <div className="flex items-start gap-3.5">
                       <div className="relative w-20 h-24 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0">
                         {exec.photo ? (
-                          <img
+                          <ResponsiveImage
                             src={exec.photo}
                             alt={exec.name}
-                            loading="lazy"
+                            sizes="96px"
                             className="w-full h-full object-cover object-top"
                           />
                         ) : (
@@ -250,10 +250,10 @@ export const LeadershipPage: React.FC<LeadershipPageProps> = ({ navigate, initia
                   >
                     <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0">
                       {exec.photo ? (
-                        <img
+                        <ResponsiveImage
                           src={exec.photo}
                           alt={exec.name}
-                          loading="lazy"
+                          sizes="80px"
                           className="w-full h-full object-cover object-top"
                         />
                       ) : (
@@ -301,10 +301,10 @@ export const LeadershipPage: React.FC<LeadershipPageProps> = ({ navigate, initia
               </div>
 
               <div className="rounded-2xl overflow-hidden border border-slate-200 bg-white p-2">
-                <img
+                <ResponsiveImage
                   src="/assets/oic/company_structure.jpg"
                   alt="Oromia Insurance S.C. Organizational Structure Chart"
-                  loading="lazy"
+                  sizes="(max-width: 1024px) 95vw, 1024px"
                   className="w-full h-auto rounded-xl object-contain max-h-[720px] mx-auto"
                 />
               </div>
@@ -384,9 +384,12 @@ export const LeadershipPage: React.FC<LeadershipPageProps> = ({ navigate, initia
             <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 space-y-5 shadow-2xl border border-slate-200">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  <img
+                  <ResponsiveImage
                     src={selectedBoard.photo}
                     alt={selectedBoard.name}
+                    priority
+                    sizes="96px"
+                    pictureClassName="inline-block w-20 h-20 shrink-0"
                     className="w-20 h-20 rounded-2xl object-cover object-top border border-slate-200"
                   />
                   <div>
@@ -436,7 +439,13 @@ export const LeadershipPage: React.FC<LeadershipPageProps> = ({ navigate, initia
                 <div className="flex items-center gap-4">
                   <div className="w-20 h-20 rounded-2xl overflow-hidden bg-[#006B6E] text-white flex items-center justify-center font-bold text-xl shrink-0">
                     {selectedExec.photo ? (
-                      <img src={selectedExec.photo} alt={selectedExec.name} className="w-full h-full object-cover object-top" />
+                      <ResponsiveImage
+                        src={selectedExec.photo}
+                        alt={selectedExec.name}
+                        priority
+                        sizes="96px"
+                        className="w-full h-full object-cover object-top"
+                      />
                     ) : (
                       getInitials(selectedExec.name)
                     )}

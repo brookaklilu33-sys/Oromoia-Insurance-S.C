@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { store } from '../services/store';
-import { signOutUser, getDestinationForAccount } from '../services/authService';
+import { getDestinationForAccount } from '../services/authRouting';
 import { useLanguage } from '../i18n/LanguageContext';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -184,6 +184,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentRoute, navigate }) => {
                     type="button"
                     onClick={async () => {
                       setAccountMenuOpen(false);
+                      const { signOutUser } = await import('../services/authService');
                       await signOutUser();
                       navigate('/');
                     }}
@@ -288,6 +289,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentRoute, navigate }) => {
                 </button>
                 <button
                   onClick={async () => {
+                    const { signOutUser } = await import('../services/authService');
                     await signOutUser();
                     setMobileMenuOpen(false);
                     navigate('/');

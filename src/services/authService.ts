@@ -21,8 +21,11 @@ import {
 } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../firebase/config';
 import { store } from './store';
+import { getDestinationForAccount } from './authRouting';
 import { CustomerProfile, UserAccount } from '../types/insurance';
 import { startGlobalProgress, doneGlobalProgress } from '../components/TopProgressBar';
+
+export { getDestinationForAccount };
 
 export type AuthHandshakeStage =
   | 'idle'
@@ -128,62 +131,7 @@ export async function logSecurityEvent(params: {
   }
 }
 
-const ADMIN_CONSOLE_ROLES = new Set([
-  'super_admin',
-  'admin',
-  'executive',
-  'department_manager',
-  'branch_manager',
-  'finance',
-  'marketing'
-]);
-
-const STAFF_WORKSPACE_ROLES = new Set([
-  'staff',
-  'underwriter',
-  'claims_officer',
-  'super_admin',
-  'admin'
-]);
-
-const OPERATOR_WORKSPACE_ROLES = new Set([
-  'operator',
-  'agent',
-  'broker',
-  'super_admin',
-  'admin'
-]);
-
-export function getDestinationForAccount(user: UserAccount, intendedRedirect?: string): string {
-  if (user.accountStatus === 'suspended' || user.accountStatus === 'deactivated' || user.accountStatus === 'pending_verification') {
-    return '/account-status';
-  }
-  if (user.accountType === 'customer' && user.onboardingStatus === 'incomplete') {
-    return intendedRedirect ? `/onboarding?redirect=${encodeURIComponent(intendedRedirect)}` : '/onboarding';
-  }
-  if (intendedRedirect && intendedRedirect !== '/login' && intendedRedirect !== '/register') {
-    if (intendedRedirect.startsWith('/admin') && !ADMIN_CONSOLE_ROLES.has(user.accountType) && user.accountType !== 'operator') {
-      return '/portal';
-    }
-    if (intendedRedirect.startsWith('/staff') && !STAFF_WORKSPACE_ROLES.has(user.accountType)) {
-      return '/portal';
-    }
-    if (intendedRedirect.startsWith('/operator') && !OPERATOR_WORKSPACE_ROLES.has(user.accountType)) {
-      return '/portal';
-    }
-    return intendedRedirect;
-  }
-  if (ADMIN_CONSOLE_ROLES.has(user.accountType)) {
-    return '/admin';
-  }
-  if (user.accountType === 'underwriter' || user.accountType === 'claims_officer' || user.accountType === 'staff') {
-    return '/staff';
-  }
-  if (user.accountType === 'operator' || user.accountType === 'agent' || user.accountType === 'broker') {
-    return '/operator';
-  }
-  return '/portal';
-}
+// Route destination helper is shared from ./authRouting to keep public bundles Firebase-free.
 
 const inFlightProvisioning = new Map<
   string,
@@ -210,10 +158,13 @@ export async function refreshAuthSessionToken(): Promise<boolean> {
   }
 }
 
+const LOGIN_WRITE_COOLDOWN_MS = 15 * 60 * 1000;
+
 export async function provisionOrLoadAccount(
   firebaseUser: User,
   providerUsed: 'google.com' | 'password',
-  onProgress?: HandshakeProgressCallback
+  onProgress?: HandshakeProgressCallback,
+  options?: { passiveRestore?: boolean }
 ): Promise<{ userAccount: UserAccount; customerProfile: CustomerProfile | null; isNewUser: boolean }> {
   const uid = firebaseUser.uid;
   const existingPromise = inFlightProvisioning.get(uid);
@@ -234,7 +185,19 @@ export async function provisionOrLoadAccount(
     let userAccount: UserAccount;
     let prefetchedCustSnap: Awaited<ReturnType<typeof getDoc>> | null = null;
 
+    const cachedUser = store.getCurrentUser();
+    const lastLoginMs = cachedUser?.lastLoginAt ? Date.parse(cachedUser.lastLoginAt) : 0;
+    const isRecentPassiveRestore =
+      Boolean(options?.passiveRestore) &&
+      Boolean(cachedUser && cachedUser.uid === uid && lastLoginMs > 0 && Date.now() - lastLoginMs < LOGIN_WRITE_COOLDOWN_MS);
+
     try {
+      const executeReadOnlySync = async (): Promise<UserAccount | null> => {
+        const snap = await getDoc(userRef);
+        if (!snap.exists()) return null;
+        return snap.data() as UserAccount;
+      };
+
       const executeProvisionTx = async () =>
         runTransaction(db, async (transaction) => {
           const snap = await transaction.get(userRef);
@@ -290,12 +253,26 @@ export async function provisionOrLoadAccount(
       );
       const custFetchPromise = getDoc(doc(db, 'customers', uid)).catch(() => null);
       try {
-        const [txUser, snapRes] = await Promise.all([
-          Promise.race([executeProvisionTx(), timeoutPromise]),
-          custFetchPromise
-        ]);
-        userAccount = txUser;
-        prefetchedCustSnap = snapRes;
+        if (isRecentPassiveRestore) {
+          const [readUser, snapRes] = await Promise.all([
+            Promise.race([executeReadOnlySync(), timeoutPromise]),
+            custFetchPromise
+          ]);
+          if (readUser) {
+            userAccount = readUser;
+            prefetchedCustSnap = snapRes;
+          } else {
+            userAccount = await Promise.race([executeProvisionTx(), timeoutPromise]);
+            prefetchedCustSnap = snapRes;
+          }
+        } else {
+          const [txUser, snapRes] = await Promise.all([
+            Promise.race([executeProvisionTx(), timeoutPromise]),
+            custFetchPromise
+          ]);
+          userAccount = txUser;
+          prefetchedCustSnap = snapRes;
+        }
       } catch (firstErr: any) {
         if (isPermissionDeniedError(firstErr)) {
           onProgress?.('refreshing_token');
@@ -363,7 +340,7 @@ export async function provisionOrLoadAccount(
         outcome: 'success',
         metadata: { onboardingStatus: 'incomplete' }
       }).catch(() => {});
-    } else {
+    } else if (!options?.passiveRestore) {
       logSecurityEvent({
         uid,
         eventType: 'USER_SIGNED_IN',
@@ -914,11 +891,13 @@ export function subscribeToAuthSession(onReady: (user: UserAccount | null) => vo
     const cached = store.getCurrentUser();
     if (cached && cached.uid === firebaseUser.uid) {
       onReady(cached);
-      provisionOrLoadAccount(firebaseUser, providerUsed).catch(() => {});
+      provisionOrLoadAccount(firebaseUser, providerUsed, undefined, { passiveRestore: true }).catch(() => {});
       return;
     }
     try {
-      const { userAccount } = await provisionOrLoadAccount(firebaseUser, providerUsed);
+      const { userAccount } = await provisionOrLoadAccount(firebaseUser, providerUsed, undefined, {
+        passiveRestore: true
+      });
       onReady(userAccount);
     } catch {
       onReady(store.getCurrentUser());

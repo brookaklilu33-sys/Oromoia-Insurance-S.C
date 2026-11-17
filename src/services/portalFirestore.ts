@@ -3,6 +3,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   query,
   setDoc,
   where
@@ -125,44 +126,69 @@ export function calculateProductQuoteETB(
   return rawPremium + tax + stampDuty;
 }
 
-export async function syncCustomerWorkspaceFromFirestore(uid: string): Promise<void> {
+const WORKSPACE_SYNC_TTL_MS = 15_000;
+const inFlightWorkspaceSync = new Map<string, Promise<void>>();
+const lastWorkspaceSyncAt = new Map<string, number>();
+
+export async function syncCustomerWorkspaceFromFirestore(uid: string, force = false): Promise<void> {
   if (!uid || !auth.currentUser) return;
+
+  const existingSync = inFlightWorkspaceSync.get(uid);
+  if (existingSync) {
+    return existingSync;
+  }
+
+  const lastSynced = lastWorkspaceSyncAt.get(uid) || 0;
+  if (!force && Date.now() - lastSynced < WORKSPACE_SYNC_TTL_MS) {
+    return;
+  }
+
+  const syncTask = (async () => {
+    try {
+      const timeout = new Promise<void>((_, reject) =>
+        setTimeout(() => reject(new Error('Workspace sync timeout')), 3000)
+      );
+
+      const fetchAll = (async () => {
+        const [appsRes, policiesRes, paymentsRes, claimsRes] = await Promise.allSettled([
+          getDocs(query(collection(db, 'applications'), where('customerId', '==', uid), limit(100))),
+          getDocs(query(collection(db, 'policies'), where('customerId', '==', uid), limit(100))),
+          getDocs(query(collection(db, 'paymentAttempts'), where('customerId', '==', uid), limit(100))),
+          getDocs(query(collection(db, 'claims'), where('customerId', '==', uid), limit(100)))
+        ]);
+
+        const applications =
+          appsRes.status === 'fulfilled'
+            ? appsRes.value.docs.map((d) => d.data() as InsuranceApplication)
+            : [];
+        const policies =
+          policiesRes.status === 'fulfilled'
+            ? policiesRes.value.docs.map((d) => d.data() as InsurancePolicy)
+            : [];
+        const payments =
+          paymentsRes.status === 'fulfilled'
+            ? paymentsRes.value.docs.map((d) => d.data() as PaymentAttempt)
+            : [];
+        const claims =
+          claimsRes.status === 'fulfilled'
+            ? claimsRes.value.docs.map((d) => d.data() as InsuranceClaim)
+            : [];
+
+        store.mergeCustomerWorkspaceRecords({ applications, policies, payments, claims });
+        lastWorkspaceSyncAt.set(uid, Date.now());
+      })();
+
+      await Promise.race([fetchAll, timeout]);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, `workspace/${uid}`);
+    }
+  })();
+
+  inFlightWorkspaceSync.set(uid, syncTask);
   try {
-    const timeout = new Promise<void>((_, reject) =>
-      setTimeout(() => reject(new Error('Workspace sync timeout')), 3000)
-    );
-
-    const fetchAll = (async () => {
-      const [appsRes, policiesRes, paymentsRes, claimsRes] = await Promise.allSettled([
-        getDocs(query(collection(db, 'applications'), where('customerId', '==', uid))),
-        getDocs(query(collection(db, 'policies'), where('customerId', '==', uid))),
-        getDocs(query(collection(db, 'paymentAttempts'), where('customerId', '==', uid))),
-        getDocs(query(collection(db, 'claims'), where('customerId', '==', uid)))
-      ]);
-
-      const applications =
-        appsRes.status === 'fulfilled'
-          ? appsRes.value.docs.map((d) => d.data() as InsuranceApplication)
-          : [];
-      const policies =
-        policiesRes.status === 'fulfilled'
-          ? policiesRes.value.docs.map((d) => d.data() as InsurancePolicy)
-          : [];
-      const payments =
-        paymentsRes.status === 'fulfilled'
-          ? paymentsRes.value.docs.map((d) => d.data() as PaymentAttempt)
-          : [];
-      const claims =
-        claimsRes.status === 'fulfilled'
-          ? claimsRes.value.docs.map((d) => d.data() as InsuranceClaim)
-          : [];
-
-      store.mergeCustomerWorkspaceRecords({ applications, policies, payments, claims });
-    })();
-
-    await Promise.race([fetchAll, timeout]);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, `workspace/${uid}`);
+    await syncTask;
+  } finally {
+    inFlightWorkspaceSync.delete(uid);
   }
 }
 

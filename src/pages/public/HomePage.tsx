@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { store } from '../../services/store';
-import { getDestinationForAccount } from '../../services/authService';
+import { getDestinationForAccount } from '../../services/authRouting';
 import { useLanguage } from '../../i18n/LanguageContext';
 import {
   SEED_FAQS,
