@@ -1,0 +1,6 @@
+{
+  "name": "Oromia Insurance S.C. (OIC) — Digital Insurance Platform",
+  "description": "Official digital insurance management platform for Oromia Insurance S.C. (OIC), Ethiopia. Featuring General Insurance, Life & Health Insurance, Agriculture & Microinsurance, Halal Takaful Insurance, customer portal, agent/operator onboarding, underwriting workspace, e-policy issuance, and public policy verification.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

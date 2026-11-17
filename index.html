@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#006B6E" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="OIC Portal" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=oic1" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=oic1" />
+    <link rel="shortcut icon" href="/favicon-32x32.png?v=oic1" />
+    <script>
+      window.__oicDeferredInstallPrompt = null;
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        window.__oicDeferredInstallPrompt = e;
+        window.dispatchEvent(new CustomEvent('oic-pwa-prompt-ready'));
+      });
+      window.addEventListener('appinstalled', function () {
+        window.__oicDeferredInstallPrompt = null;
+        window.dispatchEvent(new CustomEvent('oic-pwa-installed'));
+      });
+    </script>
+    <title>Oromia Insurance S.C. (OIC) — Digital Insurance Platform | Rest. Assured.</title>
+    <meta name="description" content="Official digital insurance management platform for Oromia Insurance S.C. (OIC), Ethiopia. Featuring General (Non-Life), Life & Health, Agriculture & Microinsurance, and Halal Takaful Insurance, customer self-service, underwriting, claims, and policy verification." />
+    <meta property="og:title" content="Oromia Insurance S.C. (OIC) — Digital Insurance Platform" />
+    <meta property="og:description" content="Official digital insurance management platform for Oromia Insurance S.C., Ethiopia. Life, General, Agriculture & Microinsurance, and Halal Takaful coverage." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preload" as="image" href="/assets/oic/hero_homepage.png" fetchpriority="high" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"></noscript>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

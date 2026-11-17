@@ -1,0 +1,725 @@
+import React, { useState } from 'react';
+import { store } from '../../services/store';
+import {
+  FileCheck,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  FileText,
+  Shield,
+  Search,
+  Eye,
+  DollarSign,
+  User,
+  ArrowRight,
+  Clock,
+  Send,
+  Building,
+  BookOpen,
+  Briefcase
+} from 'lucide-react';
+import {
+  InsuranceApplication,
+  InsurancePolicy,
+  Quotation,
+  InsuranceClaim
+} from '../../types/insurance';
+import { PlatformGuideModule } from '../../components/PlatformGuideModule';
+
+interface StaffWorkspaceProps {
+  navigate: (route: string) => void;
+}
+
+export const StaffWorkspace: React.FC<StaffWorkspaceProps> = ({ navigate }) => {
+  const currentUser = store.getCurrentUser();
+  const allApplications = store.getApplications();
+  const allPolicies = store.getPolicies();
+  const allClaims = store.getClaims();
+  const products = store.getProducts();
+
+  const [activeTab, setActiveTab] = useState<'queue' | 'policies' | 'claims' | 'guide'>('queue');
+  const [selectedApp, setSelectedApp] = useState<InsuranceApplication | null>(null);
+
+  // Underwriting Action States
+  const [basePremiumInput, setBasePremiumInput] = useState<string>('45000');
+  const [underwriterNotes, setUnderwriterNotes] = useState<string>('');
+  const [missingInfoText, setMissingInfoText] = useState<string>('');
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+
+  const pendingApps = allApplications.filter((a) => a.applicationStatus === 'submitted' || a.applicationStatus === 'under_review');
+
+  const handleOpenReview = (app: InsuranceApplication) => {
+    setSelectedApp(app);
+    // Auto calculate initial indicative premium based on product minimum
+    const prd = products.find((p) => p.productId === app.productId);
+    const minPrem = prd?.quotationConfiguration.standardMinimumPremiumETB || 5000;
+    setBasePremiumInput(minPrem.toString());
+    setUnderwriterNotes('');
+  };
+
+  const handleIssueQuotation = () => {
+    if (!selectedApp) return;
+
+    const basePrem = parseFloat(basePremiumInput) || 5000;
+    const vat = basePrem * 0.15;
+    const stamp = 50;
+    const total = basePrem + vat + stamp;
+
+    const newQuotationId = `QUO-${Date.now()}`;
+    const quo: Quotation = {
+      quotationId: newQuotationId,
+      applicationId: selectedApp.applicationId,
+      customerId: selectedApp.customerId,
+      customerName: selectedApp.customerName,
+      productId: selectedApp.productId,
+      productName: selectedApp.productName,
+      productVersion: selectedApp.productVersion,
+      coverageDetails: {
+        description: 'Underwriter approved risk schedule and indemnification limits',
+        insuredValueETB: basePrem * 20
+      },
+      premiumBreakdown: {
+        basePremiumETB: basePrem,
+        vatPercent: 15,
+        vatAmountETB: vat,
+        stampDutyETB: stamp,
+        administrativeFeeETB: 0,
+        totalPayableETB: total
+      },
+      currency: 'ETB',
+      validityStart: new Date().toISOString().split('T')[0],
+      validityEnd: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString().split('T')[0],
+      preparedBy: currentUser?.uid || 'STAFF-UW-01',
+      status: 'issued',
+      createdAt: new Date().toISOString()
+    };
+
+    // Update application
+    selectedApp.applicationStatus = 'quoted';
+    selectedApp.quotationId = newQuotationId;
+    selectedApp.assignedOfficerId = currentUser?.uid || 'OIC-STF-UW-01';
+    selectedApp.assignedOfficerName = `${currentUser?.firstName || 'OIC'} ${currentUser?.lastName || 'Underwriter'}`;
+    selectedApp.underwritingNotes = [underwriterNotes || 'Risk assessed and quotation issued.'];
+    store.saveApplication(selectedApp);
+
+    store.logAudit({
+      actorUid: currentUser?.uid || 'OIC-STF-UW-01',
+      actorName: `${currentUser?.firstName || 'OIC'} ${currentUser?.lastName || 'Underwriter'}`,
+      actorRole: currentUser?.accountType || 'underwriter',
+      action: 'QUOTATION_ISSUED',
+      resourceType: 'quotation',
+      resourceId: newQuotationId,
+      reason: `Quotation issued for ${selectedApp.applicationNumber} (Total: ${total} ETB)`,
+      correlationId: `QUO-ISSUE-${Date.now()}`
+    });
+
+    setActionFeedback(`Quotation issued! Total payable: ETB ${total.toLocaleString()}. Customer notified to pay via Chapa.`);
+    setTimeout(() => {
+      setActionFeedback(null);
+      setSelectedApp(null);
+    }, 2000);
+  };
+
+  const handleRequestMoreInfo = () => {
+    if (!selectedApp || !missingInfoText.trim()) return;
+
+    selectedApp.applicationStatus = 'more_info_required';
+    selectedApp.missingInformationRequest = missingInfoText;
+    selectedApp.underwritingNotes = [
+      ...(selectedApp.underwritingNotes || []),
+      `Information requested: ${missingInfoText}`
+    ];
+    store.saveApplication(selectedApp);
+
+    store.logAudit({
+      actorUid: currentUser?.uid || 'OIC-STF-UW-01',
+      actorName: `${currentUser?.firstName || 'OIC'} ${currentUser?.lastName || 'Underwriter'}`,
+      actorRole: currentUser?.accountType || 'underwriter',
+      action: 'APPLICATION_MORE_INFO_REQUESTED',
+      resourceType: 'application',
+      resourceId: selectedApp.applicationId,
+      reason: `More information requested from applicant: ${missingInfoText}`,
+      correlationId: `INFO-REQ-${Date.now()}`
+    });
+
+    setActionFeedback('Information request dispatched to customer portal and email outbox.');
+    setTimeout(() => {
+      setActionFeedback(null);
+      setSelectedApp(null);
+      setMissingInfoText('');
+    }, 1500);
+  };
+
+  const handleDirectApproveAndIssue = () => {
+    if (!selectedApp) return;
+
+    const prd = products.find((p) => p.productId === selectedApp.productId);
+    const prem = parseFloat(basePremiumInput) || 45000;
+    const vCode = `OIC-VRF-${Math.floor(1000 + Math.random() * 9000)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    const catPrefix =
+      prd?.productCategory === 'life_health'
+        ? 'LFT'
+        : prd?.productCategory === 'agri_micro'
+          ? 'AGR'
+          : prd?.productCategory === 'halal_takaful'
+            ? 'TAK'
+            : 'NLF';
+    const polNumber = `OIC/${catPrefix}/2026/${Math.floor(100000 + Math.random() * 900000)}`;
+
+    const newPolicy: InsurancePolicy = {
+      policyId: `POL-${Date.now()}`,
+      policyNumber: polNumber,
+      verificationCode: vCode,
+      verificationCodeHash: 'sha256_oic_registry_verified',
+      customerId: selectedApp.customerId,
+      customerName: selectedApp.customerName,
+      customerPhone: selectedApp.applicantInformation.phone,
+      maskedInsuredName: `${selectedApp.customerName.slice(0, 1)}*** ${selectedApp.customerName.split(' ')[1]?.slice(0, 1) || 'T'}***`,
+      productId: selectedApp.productId,
+      productName: selectedApp.productName,
+      productVersion: selectedApp.productVersion,
+      applicationId: selectedApp.applicationId,
+      quotationId: `QUO-OIC-${Date.now()}`,
+      paymentReference: 'OIC-STAFF-OVERRIDE',
+      insuredSubject: selectedApp.applicationAnswers?.vehicleModel || selectedApp.applicationAnswers?.locationAddress || 'Insured Schedule',
+      coverageSummary: prd?.benefits || ['Standard risk schedule'],
+      exclusionsSummary: prd?.exclusions.slice(0, 2) || ['Statutory exclusions'],
+      totalPremiumETB: prem,
+      currency: 'ETB',
+      startDate: new Date().toISOString().split('T')[0],
+      expiryDate: new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString().split('T')[0],
+      policyStatus: 'active',
+      policyDocumentId: `DOC-POL-${Date.now()}`,
+      certificateDocumentId: `DOC-CERT-${Date.now()}`,
+      preparedBy: currentUser?.uid || 'OIC-STF-UW-01',
+      reviewedBy: currentUser?.uid || 'OIC-STF-UW-01',
+      approvedBy: 'OIC-STF-ADM-01',
+      digitalSignatureRef: `OIC-SIG-SHA256-${Date.now()}`,
+      issuedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    store.issuePolicy(newPolicy);
+    setActionFeedback(`Policy ${polNumber} issued with verification code ${vCode}! Customer e-policy registry updated.`);
+    setTimeout(() => {
+      setActionFeedback(null);
+      setSelectedApp(null);
+    }, 2000);
+  };
+
+  const handleUpdateClaimStatus = (
+    claim: InsuranceClaim,
+    nextStatus: InsuranceClaim['claimStatus'],
+    note: string
+  ) => {
+    store.saveClaim({
+      ...claim,
+      claimStatus: nextStatus,
+      assignedAdjusterId: currentUser?.uid || 'OIC-STF-UW-01',
+      adjudicationNotes: note
+    });
+    store.logAudit({
+      actorUid: currentUser?.uid || 'OIC-STF-UW-01',
+      actorName: `${currentUser?.firstName || 'OIC'} ${currentUser?.lastName || 'Underwriter'}`,
+      actorRole: currentUser?.accountType || 'underwriter',
+      action: `CLAIM_${nextStatus.toUpperCase()}`,
+      resourceType: 'policy',
+      resourceId: claim.claimId,
+      reason: `Claim ${claim.claimNumber} transitioned to ${nextStatus.replace('_', ' ')}`,
+      correlationId: `CLM-ADJ-${Date.now()}`
+    });
+    setActionFeedback(`Claim ${claim.claimNumber} updated to ${nextStatus.replace('_', ' ').toUpperCase()}.`);
+    setTimeout(() => setActionFeedback(null), 2200);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex overflow-x-hidden">
+      {/* Staff Sidebar */}
+      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col justify-between shrink-0 hidden md:flex">
+        <div>
+          <div className="p-5 border-b border-slate-100 flex items-center gap-3">
+            <img
+              src="/assets/oic/oic_logo.png"
+              alt="Oromia Insurance S.C."
+              className="w-9 h-9 rounded-lg object-contain bg-white border border-slate-200 p-1 shrink-0"
+            />
+            <div>
+              <h2 className="text-sm font-bold text-[#006B6E] leading-tight">Underwriting Desk</h2>
+              <span className="text-[11px] text-slate-500 font-mono">Staff: {currentUser?.firstName || 'Underwriter'}</span>
+            </div>
+          </div>
+
+          <nav className="p-3 space-y-1 text-xs font-medium">
+            <button
+              onClick={() => { setActiveTab('queue'); setSelectedApp(null); }}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition-colors cursor-pointer ${
+                activeTab === 'queue' ? 'bg-[#006B6E] text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <FileText className="w-4 h-4 text-[#7DC242]" />
+              <span>Review Queue ({pendingApps.length})</span>
+            </button>
+
+            <button
+              onClick={() => { setActiveTab('policies'); setSelectedApp(null); }}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition-colors cursor-pointer ${
+                activeTab === 'policies' ? 'bg-[#006B6E] text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <Shield className="w-4 h-4 text-[#7DC242]" />
+              <span>Issued Policies ({allPolicies.length})</span>
+            </button>
+
+            <button
+              onClick={() => { setActiveTab('claims'); setSelectedApp(null); }}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition-colors cursor-pointer ${
+                activeTab === 'claims' ? 'bg-[#006B6E] text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <AlertCircle className="w-4 h-4 text-[#7DC242]" />
+              <span>Claims Review ({allClaims.length})</span>
+            </button>
+
+            <div className="pt-3 mt-3 border-t border-slate-100 space-y-1">
+              <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                System Docs
+              </div>
+              <button
+                onClick={() => { setActiveTab('guide'); setSelectedApp(null); }}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition-colors cursor-pointer ${
+                  activeTab === 'guide' ? 'bg-[#006B6E] text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <BookOpen className="w-4 h-4 text-[#7DC242]" />
+                <span>Platform Guide</span>
+              </button>
+            </div>
+          </nav>
+        </div>
+
+        <div className="p-4 border-t border-slate-100 text-xs">
+          <div className="font-semibold text-slate-900">{currentUser?.firstName || 'OIC'} {currentUser?.lastName || 'Underwriter'}</div>
+          <div className="text-[11px] text-slate-500 capitalize">Role: {(currentUser?.accountType || 'underwriter').replace('_', ' ')}</div>
+          <div className="text-[11px] text-slate-500 font-mono">Branch: {currentUser?.branchId || 'BR-OIC-HQ'}</div>
+        </div>
+      </aside>
+
+      {/* Main Underwriting View */}
+      <main className="flex-1 min-w-0 p-3 sm:p-6 lg:p-10 max-w-6xl mx-auto space-y-4 sm:space-y-8 overflow-y-auto overflow-x-hidden">
+        <div className="md:hidden -mx-3 px-3 pb-2.5 border-b border-slate-200 flex items-center gap-1.5 overflow-x-auto">
+          {[
+            { id: 'queue', label: 'Review Queue' },
+            { id: 'policies', label: 'Issued Policies' },
+            { id: 'claims', label: 'Claims Review' },
+            { id: 'guide', label: 'Platform Guide' }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => { setActiveTab(tab.id as any); setSelectedApp(null); }}
+              className={`shrink-0 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${
+                activeTab === tab.id ? 'bg-[#006B6E] text-white' : 'bg-white border border-slate-200 text-slate-700'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-semibold text-[#006B6E] uppercase tracking-wider">
+              <span>OIC Underwriting & Risk Adjudication</span>
+              <span aria-hidden="true">·</span>
+              <span>Maker-Checker Governance</span>
+            </div>
+            <h1 className="text-xl sm:text-3xl font-bold text-slate-900 mt-1">
+              Application Review & Policy Issuance
+            </h1>
+          </div>
+        </div>
+
+        {actionFeedback && (
+          <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-xs font-semibold flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <span>{actionFeedback}</span>
+          </div>
+        )}
+
+        {/* TAB 1: REVIEW QUEUE */}
+        <div key={selectedApp ? `app-${selectedApp.applicationId}` : activeTab} className="oic-view-transition space-y-4 sm:space-y-8">
+        {activeTab === 'queue' && (
+          <div className="space-y-6">
+            {selectedApp ? (
+              /* APPLICATION DOSSIER & UNDERWRITING ACTIONS */
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 space-y-6">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+                  <div>
+                    <span className="text-[11px] font-mono text-slate-500 uppercase">
+                      Application Dossier: {selectedApp.applicationNumber}
+                    </span>
+                    <h2 className="text-lg font-bold text-[#006B6E] mt-0.5">
+                      {selectedApp.productName}
+                    </h2>
+                  </div>
+                  <button
+                    onClick={() => setSelectedApp(null)}
+                    className="text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer"
+                  >
+                    Back to Queue
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+                  {/* Applicant Info */}
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                    <h4 className="font-bold text-[#006B6E] uppercase text-[11px]">Applicant Profile</h4>
+                    <div className="flex justify-between py-1 border-b border-slate-200">
+                      <span className="text-slate-500">Customer:</span>
+                      <strong className="text-slate-900">{selectedApp.customerName}</strong>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-200">
+                      <span className="text-slate-500">Phone:</span>
+                      <span className="font-semibold text-slate-900 tabular-nums">{selectedApp.applicantInformation.phone}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-200">
+                      <span className="text-slate-500">Channel:</span>
+                      <span className="capitalize">{selectedApp.registrationChannel.replace('_', ' ')}</span>
+                    </div>
+                    {selectedApp.createdByOperatorName && (
+                      <div className="flex justify-between py-1">
+                        <span className="text-slate-500">Assisting Operator:</span>
+                        <strong className="text-slate-900">{selectedApp.createdByOperatorName}</strong>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Answers & Specifications */}
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                    <h4 className="font-bold text-[#006B6E] uppercase text-[11px]">Submitted Form Answers</h4>
+                    {Object.entries(selectedApp.applicationAnswers || {}).map(([key, val]) => (
+                      <div key={key} className="flex justify-between py-1 border-b border-slate-200">
+                        <span className="text-slate-500 capitalize">{key.replace(/([A-Z])/g, ' $1')}:</span>
+                        <strong className="text-slate-900">{String(val)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Uploaded Documents Review */}
+                <div className="space-y-3 pt-2">
+                  <h4 className="text-xs font-bold text-[#006B6E] uppercase tracking-wider">
+                    Uploaded Document Inspection
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <span className="font-semibold text-slate-900">Vehicle Logbook / National ID</span>
+                        <div className="text-[10px] text-emerald-700 font-medium">Malware Scan: Clean · SHA-256 Valid</div>
+                      </div>
+                      <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded">
+                        Verified
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Underwriting Decision Panel */}
+                <div className="bg-slate-50 border border-slate-300 rounded-xl p-6 space-y-4 text-xs">
+                  <h4 className="text-sm font-bold text-[#006B6E] uppercase tracking-wider">
+                    Underwriting Decision & Quotation Builder
+                  </h4>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Base Premium (ETB) — Before 15% VAT & Stamp
+                      </label>
+                      <input
+                        type="number"
+                        value={basePremiumInput}
+                        onChange={(e) => setBasePremiumInput(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 font-bold tabular-nums"
+                      />
+                      <div className="text-[11px] text-slate-500 mt-1">
+                        Total with 15% VAT + ETB 50 Stamp:{' '}
+                        <strong className="text-slate-900 font-bold tabular-nums">
+                          ETB {((parseFloat(basePremiumInput) || 0) * 1.15 + 50).toLocaleString()}
+                        </strong>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Underwriter Internal Notes</label>
+                      <input
+                        type="text"
+                        placeholder="Risk assessment notes..."
+                        value={underwriterNotes}
+                        onChange={(e) => setUnderwriterNotes(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-200 flex flex-wrap gap-3">
+                    <button
+                      onClick={handleIssueQuotation}
+                      className="bg-[#006B6E] hover:bg-[#005254] text-white text-xs font-semibold px-5 py-2.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <DollarSign className="w-4 h-4 text-[#9ad864]" />
+                      <span>Issue Formal Quotation to Customer</span>
+                    </button>
+
+                    <button
+                      onClick={handleDirectApproveAndIssue}
+                      className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold px-5 py-2.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Approve & Issue E-Policy Immediately</span>
+                    </button>
+                  </div>
+
+                  {/* Request More Information Sub-Section */}
+                  <div className="pt-4 border-t border-slate-200 space-y-2">
+                    <h5 className="font-semibold text-slate-800">Need more information or replacement documents?</h5>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Specify missing document or vehicle inspection requirement..."
+                        value={missingInfoText}
+                        onChange={(e) => setMissingInfoText(e.target.value)}
+                        className="flex-1 bg-white border border-slate-300 rounded px-3 py-1.5 text-xs text-slate-900"
+                      />
+                      <button
+                        onClick={handleRequestMoreInfo}
+                        className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-1.5 rounded font-semibold text-xs shrink-0"
+                      >
+                        Request Info
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* APPLICATIONS QUEUE TABLE */
+              <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-[#006B6E] uppercase tracking-wider">
+                    Applications Awaiting Underwriting Review
+                  </h3>
+                  <span className="text-xs font-semibold text-slate-500 tabular-nums">{allApplications.length} Total</span>
+                </div>
+
+                <div className="border border-slate-200 rounded-xl overflow-hidden text-xs">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                      <tr>
+                        <th className="p-3">App Reference</th>
+                        <th className="p-3">Customer</th>
+                        <th className="p-3">Product</th>
+                        <th className="p-3">Channel</th>
+                        <th className="p-3">Status</th>
+                        <th className="p-3">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {allApplications.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="p-6 text-center text-slate-500">
+                            No underwriting applications in queue yet. Customer and operator submissions will appear here.
+                          </td>
+                        </tr>
+                      ) : (
+                        allApplications.map((app) => (
+                          <tr key={app.applicationId} className="hover:bg-slate-50">
+                            <td className="p-3 font-mono font-semibold text-slate-900">{app.applicationNumber}</td>
+                            <td className="p-3 font-medium text-slate-900">{app.customerName}</td>
+                            <td className="p-3">{app.productName}</td>
+                            <td className="p-3 capitalize">{app.registrationChannel.replace('_', ' ')}</td>
+                            <td className="p-3">
+                              <span className="text-[10px] bg-amber-100 text-amber-800 font-semibold px-2 py-0.5 rounded uppercase">
+                                {app.applicationStatus.replace('_', ' ')}
+                              </span>
+                            </td>
+                            <td className="p-3">
+                              <button
+                                onClick={() => handleOpenReview(app)}
+                                className="bg-[#006B6E] text-white font-semibold text-xs px-3 py-1.5 rounded hover:bg-[#005254] cursor-pointer"
+                              >
+                                Review & Adjudicate
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 2: ISSUED POLICIES */}
+        {activeTab === 'policies' && (
+          <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+            <h3 className="text-sm font-bold text-[#006B6E] uppercase tracking-wider">
+              Issued E-Policy Registry
+            </h3>
+
+            <div className="border border-slate-200 rounded-xl overflow-hidden text-xs">
+              <table className="w-full text-left">
+                <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                  <tr>
+                    <th className="p-3">Policy Number</th>
+                    <th className="p-3">Verification Code</th>
+                    <th className="p-3">Customer</th>
+                    <th className="p-3">Product</th>
+                    <th className="p-3">Premium</th>
+                    <th className="p-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {allPolicies.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-6 text-center text-slate-500">
+                        No e-policies issued yet. Approve an application or issue a policy from underwriting review.
+                      </td>
+                    </tr>
+                  ) : (
+                    allPolicies.map((pol) => (
+                      <tr key={pol.policyId} className="hover:bg-slate-50">
+                        <td className="p-3 font-mono font-bold text-slate-900">{pol.policyNumber}</td>
+                        <td className="p-3 font-mono text-[#006B6E] font-semibold">{pol.verificationCode}</td>
+                        <td className="p-3 font-medium text-slate-900">{pol.customerName}</td>
+                        <td className="p-3">{pol.productName}</td>
+                        <td className="p-3 font-bold text-slate-900 tabular-nums">ETB {pol.totalPremiumETB.toLocaleString()}</td>
+                        <td className="p-3">
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded uppercase ${
+                            pol.policyStatus === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'
+                          }`}>
+                            {pol.policyStatus}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: CLAIMS REVIEW */}
+        {activeTab === 'claims' && (
+          <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-[#006B6E] uppercase tracking-wider">
+                  Claims Inspection &amp; Settlement Desk
+                </h3>
+                <p className="text-xs text-slate-500">Review customer and public claim notifications, assign surveyors, and adjudicate settlements.</p>
+              </div>
+              <span className="text-xs font-semibold text-slate-500 tabular-nums">{allClaims.length} Claims</span>
+            </div>
+
+            {allClaims.length === 0 ? (
+              <div className="p-8 text-center text-xs text-slate-500 bg-slate-50 rounded-xl border border-slate-200">
+                No claims recorded yet.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {allClaims.map((claim) => (
+                  <div key={claim.claimId} className="border border-slate-200 rounded-xl p-4 bg-slate-50/70 space-y-3 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <span className="font-mono font-bold text-[#006B6E]">{claim.claimNumber}</span>
+                        <span className="text-slate-400 mx-2">·</span>
+                        <span className="font-semibold text-slate-900">{claim.customerName}</span>
+                        <span className="text-slate-500 ml-2 font-mono">({claim.policyNumber})</span>
+                      </div>
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded uppercase ${
+                        claim.claimStatus === 'settled' || claim.claimStatus === 'approved'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : claim.claimStatus === 'declined'
+                            ? 'bg-rose-100 text-rose-800'
+                            : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {claim.claimStatus.replace('_', ' ')}
+                      </span>
+                    </div>
+
+                    <p className="text-slate-700 leading-relaxed">{claim.description}</p>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200">
+                      <div className="text-[11px] text-slate-500">
+                        Location: <strong className="text-slate-700">{claim.incidentLocation}</strong> · Est. Loss:{' '}
+                        <strong className="font-bold text-slate-800 tabular-nums">ETB {claim.estimatedLossETB.toLocaleString()}</strong>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        {claim.claimStatus === 'submitted' && (
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateClaimStatus(claim, 'surveyor_assigned', 'Surveyor dispatched for 24h field inspection.')}
+                            className="bg-[#006B6E] hover:bg-[#005254] text-white px-3 py-1.5 rounded-lg text-[11px] font-semibold cursor-pointer"
+                          >
+                            Assign Surveyor
+                          </button>
+                        )}
+                        {(claim.claimStatus === 'submitted' || claim.claimStatus === 'surveyor_assigned' || claim.claimStatus === 'under_investigation') && (
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateClaimStatus(claim, 'approved', 'Loss verified against policy coverage schedule.')}
+                            className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-lg text-[11px] font-semibold cursor-pointer"
+                          >
+                            Approve Claim
+                          </button>
+                        )}
+                        {claim.claimStatus === 'approved' && (
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateClaimStatus(claim, 'settled', 'Discharge voucher executed and settlement disbursed.')}
+                            className="bg-emerald-800 hover:bg-emerald-900 text-white px-3 py-1.5 rounded-lg text-[11px] font-semibold cursor-pointer"
+                          >
+                            Mark Settled
+                          </button>
+                        )}
+                        {claim.claimStatus !== 'settled' && claim.claimStatus !== 'declined' && (
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateClaimStatus(claim, 'declined', 'Claim declined after underwriting exclusion review.')}
+                            className="bg-white border border-rose-200 text-rose-700 hover:bg-rose-50 px-3 py-1.5 rounded-lg text-[11px] font-semibold cursor-pointer"
+                          >
+                            Decline
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 4: PLATFORM GUIDE & SYSTEM DOCUMENTATION */}
+        {activeTab === 'guide' && (
+          <PlatformGuideModule
+            role="staff"
+            userId={currentUser?.uid}
+            onQuickNavigate={({ tab, route }) => {
+              if (route) {
+                navigate(route);
+              } else if (tab) {
+                setSelectedApp(null);
+                setActiveTab(tab as any);
+              }
+            }}
+          />
+        )}
+        </div>
+      </main>
+    </div>
+  );
+};

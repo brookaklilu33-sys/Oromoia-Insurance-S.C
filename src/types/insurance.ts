@@ -1,0 +1,696 @@
+/**
+ * Oromia Insurance S.C. (OIC) - Platform Domain Models & Types
+ * Complete specification adhering to the Firestore Database Blueprint.
+ */
+
+export type UserRole =
+  | 'customer'
+  | 'agent'
+  | 'broker'
+  | 'operator'
+  | 'underwriter'
+  | 'claims_officer'
+  | 'finance'
+  | 'marketing'
+  | 'branch_manager'
+  | 'department_manager'
+  | 'executive'
+  | 'staff'
+  | 'super_admin'
+  | 'admin';
+
+export type InsuranceBusinessLine = 'non_life' | 'life_health' | 'agri_micro' | 'halal_takaful';
+
+export interface UserAccount {
+  uid: string;
+  accountType: UserRole;
+  displayName?: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  emailVerified: boolean;
+  photoURL?: string;
+  authProviders?: string[];
+  phone: string;
+  phoneVerified: boolean;
+  branchId?: string;
+  departmentId?: string;
+  operatorId?: string;
+  accountStatus: 'active' | 'suspended' | 'pending_verification' | 'deactivated';
+  onboardingStatus?: 'incomplete' | 'complete';
+  registrationChannel: 'self_service' | 'assisted_operator' | 'branch_walkin';
+  createdAt: string;
+  updatedAt: string;
+  lastLoginAt?: string;
+  consentRecords?: {
+    termsAccepted: boolean;
+    dataProcessingAccepted: boolean;
+    marketingConsent: boolean;
+    timestamp: string;
+  };
+}
+
+export interface CustomerProfile {
+  customerId: string;
+  authUid: string;
+  customerNumber: string; // e.g. OIC-CUST-2026-0042
+  customerType: 'individual' | 'corporate' | 'cooperative_union';
+  personalInformation: {
+    title?: string;
+    fullName: string;
+    dateOfBirth?: string;
+    gender?: string;
+    idType: 'national_id' | 'passport' | 'kebele_id' | 'business_license';
+    idNumberMasked: string; // e.g. ETH-****-4819
+    tinNumber?: string;
+    occupation?: string;
+  };
+  contactInformation: {
+    primaryPhone: string;
+    secondaryPhone?: string;
+    email: string;
+    preferredLanguage: 'amharic' | 'english' | 'oromo' | 'tigrinya';
+  };
+  address: {
+    subcityOrZone: string;
+    woreda?: string;
+    kebeleOrHouseNo?: string;
+    city: string; // e.g. Addis Ababa / Finfinne, Adama, Jimma
+    region: string; // e.g. Addis Ababa, Oromia, Sidama, Amhara
+    postalCode?: string;
+  };
+  identityVerificationStatus: 'unverified' | 'pending' | 'verified' | 'rejected';
+  accountStatus: 'active' | 'dormant' | 'suspended';
+  registrationChannel: 'self_service' | 'assisted_operator' | 'branch_walkin';
+  createdByOperatorId?: string;
+  branchId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OperatorProfile {
+  operatorId: string;
+  authUid: string;
+  name: string;
+  email: string;
+  phone: string;
+  branchId: string;
+  departmentId?: string;
+  supervisorId: string;
+  assignedProducts: string[]; // product IDs
+  accountStatus: 'active' | 'suspended' | 'inactive';
+  trainingStatus: 'not_started' | 'in_progress' | 'certified' | 'renewal_required';
+  performanceSummary: {
+    totalAssistedOnboarded: number;
+    totalApplicationsSubmitted: number;
+    totalPoliciesIssued: number;
+    complianceScorePct: number;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffProfile {
+  staffId: string;
+  authUid: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  department:
+    | 'underwriting'
+    | 'claims'
+    | 'finance'
+    | 'marketing'
+    | 'operations'
+    | 'executive'
+    | 'takaful'
+    | 'life_health'
+    | 'agri_micro'
+    | 'it'
+    | 'legal'
+    | 'risk_compliance';
+  departmentId?: string;
+  branchId: string;
+  permissions: string[];
+  accountStatus: 'active' | 'inactive';
+  supervisorId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Department {
+  departmentId: string;
+  name: string;
+  category: 'executive' | 'business_line' | 'operations' | 'support_governance';
+  telephone: string;
+  fax?: string;
+  poBox?: string;
+  headTitle: string;
+  headName?: string;
+  description: string;
+  status: 'active' | 'inactive';
+}
+
+export interface AgentProfile {
+  agentId: string;
+  name: string;
+  licenseNumber: string;
+  phone: string;
+  email: string;
+  branchId: string;
+  businessLines: InsuranceBusinessLine[];
+  commissionRateStatus: 'pending_confirmation' | 'configured';
+  status: 'active' | 'suspended' | 'pending_review';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BrokerProfile {
+  brokerId: string;
+  companyName: string;
+  contactPerson: string;
+  nbeLicenseRef: string;
+  phone: string;
+  email: string;
+  partnerBranches: string[];
+  status: 'active' | 'suspended' | 'pending_review';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Branch {
+  branchId: string;
+  name: string;
+  city: string;
+  region?: 'finfinne' | 'upcountry' | 'contact_office' | 'headquarters';
+  address: string;
+  phone: string;
+  fax?: string;
+  poBox?: string;
+  email: string;
+  managerName: string;
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
+  isHeadquarters?: boolean;
+  isContactOffice?: boolean;
+  status: 'active' | 'renovation' | 'closed';
+  openingHours: string;
+}
+
+export interface DynamicFormField {
+  id: string;
+  label: string;
+  type: 'text' | 'number' | 'select' | 'radio' | 'date' | 'textarea' | 'boolean';
+  placeholder?: string;
+  options?: { label: string; value: string }[];
+  required: boolean;
+  helpText?: string;
+  defaultValue?: string | number | boolean;
+}
+
+export interface InsuranceProduct {
+  productId: string;
+  slug: string;
+  productName: string;
+  productCategory: InsuranceBusinessLine;
+  subCategory?: string;
+  shortDescription: string;
+  fullDescription: string;
+  heroImage?: string;
+  disclaimer: string;
+  isDemonstration?: boolean;
+  shariaSupervised?: boolean;
+  benefits: string[];
+  coverageSections: {
+    title: string;
+    description: string;
+    limitOrFormula: string;
+  }[];
+  exclusions: string[];
+  eligibilityRules: string[];
+  requiredDocuments: {
+    code: string;
+    title: string;
+    description: string;
+    mandatory: boolean;
+  }[];
+  faq: {
+    question: string;
+    answer: string;
+  }[];
+  applicationSchema: {
+    stepTitle: string;
+    fields: DynamicFormField[];
+  }[];
+  quotationConfiguration: {
+    baseRateDescription: string;
+    standardMinimumPremiumETB: number;
+    taxRatePercent: number;
+    stampDutyETB: number;
+    indicativeCalculationSample: string;
+    requiresActuarialConfirmation?: boolean;
+  };
+  underwritingConfiguration: {
+    requiresInspection: boolean;
+    makerCheckerRequired: boolean;
+    autoQuoteEligible: boolean;
+    maxAutoQuoteAmountETB: number;
+  };
+  policyTemplateId: string;
+  certificateTemplateId?: string;
+  renewalConfiguration: {
+    defaultTenureMonths: number;
+    gracePeriodDays: number;
+    reminderCadenceDays: number[];
+  };
+  publicStatus: 'draft' | 'submitted' | 'approved' | 'published' | 'inactive' | 'archived';
+  availability: 'online_and_operator' | 'operator_only' | 'restricted';
+  version: number;
+  createdBy: string;
+  reviewedBy?: string;
+  approvedBy?: string;
+  publishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt?: string;
+}
+
+export interface ProductVersionRecord {
+  versionId: string;
+  productId: string;
+  versionNumber: number;
+  contentSnapshot: Partial<InsuranceProduct>;
+  legalTermsVersion: string;
+  underwritingRulesVersion: string;
+  approvalStatus: 'approved' | 'superseded';
+  preparedBy: string;
+  reviewedBy: string;
+  approvedBy: string;
+  effectiveFrom: string;
+  createdAt: string;
+}
+
+export interface InsuranceApplication {
+  applicationId: string;
+  applicationNumber: string; // e.g. OIC-APP-2026-00812
+  customerId: string;
+  customerName: string;
+  productId: string;
+  productName: string;
+  productCategory?: InsuranceBusinessLine;
+  productVersion: number;
+  applicantInformation: {
+    fullName: string;
+    phone: string;
+    email: string;
+    address: string;
+  };
+  applicationAnswers: Record<string, any>;
+  uploadedDocumentIds: string[];
+  applicationStatus:
+    | 'draft'
+    | 'submitted'
+    | 'under_review'
+    | 'more_info_required'
+    | 'quoted'
+    | 'awaiting_payment'
+    | 'payment_verified'
+    | 'pending_issuance'
+    | 'approved'
+    | 'declined'
+    | 'withdrawn';
+  assignedOfficerId?: string;
+  assignedOfficerName?: string;
+  branchId: string;
+  createdByOperatorId?: string;
+  createdByOperatorName?: string;
+  registrationChannel: 'self_service' | 'assisted_operator' | 'branch_walkin';
+  underwritingNotes?: string[];
+  missingInformationRequest?: string;
+  quotationId?: string;
+  quotedAmountETB?: number;
+  createdAt: string;
+  submittedAt?: string;
+  updatedAt: string;
+}
+
+export interface CustomerDocument {
+  documentId: string;
+  ownerCustomerId: string;
+  applicationId?: string;
+  policyId?: string;
+  documentType: 'national_id' | 'vehicle_logbook' | 'driver_license' | 'property_title' | 'medical_report' | 'business_license' | 'other';
+  title: string;
+  originalFileName: string;
+  storagePath: string;
+  mimeType: string;
+  sizeBytes: number;
+  checksum: string;
+  uploadStatus: 'uploaded' | 'processing' | 'verified' | 'rejected' | 'quarantined';
+  malwareScanStatus: 'clean' | 'scanning' | 'flagged';
+  reviewStatus: 'pending' | 'accepted' | 'rejected';
+  rejectionReason?: string;
+  uploadedBy: string;
+  uploadedAt: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  version: number;
+}
+
+export interface Quotation {
+  quotationId: string;
+  applicationId: string;
+  customerId: string;
+  customerName: string;
+  productId: string;
+  productName: string;
+  productVersion: number;
+  coverageDetails: {
+    description: string;
+    insuredValueETB: number;
+    deductibleOrExcessETB?: number;
+  };
+  premiumBreakdown: {
+    basePremiumETB: number;
+    vatPercent: number;
+    vatAmountETB: number;
+    stampDutyETB: number;
+    administrativeFeeETB: number;
+    totalPayableETB: number;
+  };
+  currency: 'ETB';
+  validityStart: string;
+  validityEnd: string;
+  preparedBy: string;
+  approvedBy?: string;
+  status: 'draft' | 'issued' | 'accepted' | 'expired' | 'superseded';
+  createdAt: string;
+}
+
+export interface PaymentAttempt {
+  paymentAttemptId: string;
+  customerId: string;
+  applicationId: string;
+  quotationId: string;
+  provider: 'chapa_v2';
+  merchantReference: string; // e.g. OIC-CHAPA-2026-99382
+  providerReference?: string;
+  checkoutUrl?: string;
+  amountETB: number;
+  currency: 'ETB';
+  paymentStatus: 'pending' | 'successful' | 'failed' | 'cancelled' | 'refunded';
+  idempotencyKey: string;
+  verificationStatus: 'unverified' | 'verified_server' | 'failed_verification';
+  verifiedAt?: string;
+  rawCallbackMetadata?: Record<string, any>;
+  failureReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InsurancePolicy {
+  policyId: string;
+  policyNumber: string; // e.g. OIC/POL/2026/00918
+  verificationCode: string; // e.g. OIC-VRF-8924-K92X
+  verificationCodeHash: string;
+  customerId: string;
+  customerName: string;
+  customerPhone: string;
+  maskedInsuredName: string;
+  productId: string;
+  productName: string;
+  productCategory?: InsuranceBusinessLine;
+  productVersion: number;
+  applicationId: string;
+  quotationId: string;
+  paymentReference: string;
+  branchId?: string;
+  insuredSubject: string;
+  coverageSummary: string[];
+  exclusionsSummary: string[];
+  totalPremiumETB: number;
+  currency: 'ETB';
+  startDate: string;
+  expiryDate: string;
+  policyStatus: 'active' | 'expired' | 'cancelled' | 'suspended' | 'superseded';
+  policyDocumentId: string;
+  certificateDocumentId?: string;
+  preparedBy: string;
+  reviewedBy: string;
+  approvedBy: string;
+  digitalSignatureRef?: string;
+  issuedAt: string;
+  createdAt: string;
+  updatedAt: string;
+  supersedesPolicyId?: string;
+}
+
+export interface PolicyDocument {
+  policyDocumentId: string;
+  policyId: string;
+  documentType: 'schedule' | 'certificate' | 'policy_wording' | 'endorsement';
+  title: string;
+  templateVersion: string;
+  storagePath: string;
+  documentVersion: number;
+  generatedAt: string;
+  checksum: string;
+  status: 'valid' | 'revoked';
+}
+
+export interface PolicyVerificationLog {
+  verificationId: string;
+  queryCode: string;
+  matchedPolicyId?: string;
+  verificationOutcome: 'verified_active' | 'verified_expired' | 'verified_cancelled' | 'verified_suspended' | 'not_found' | 'invalid_format';
+  verificationTimestamp: string;
+  channel: 'public_portal' | 'institutional_api' | 'qr_scanner';
+  ipMasked?: string;
+  userAgentSnippet?: string;
+}
+
+export interface EmailTemplate {
+  templateId: string;
+  templateName: string;
+  category: 'transactional' | 'renewal_reminder' | 'promotional';
+  subject: string;
+  htmlBody: string;
+  textBody: string;
+  variables: string[];
+  version: number;
+  status: 'active' | 'draft' | 'archived';
+  preparedBy: string;
+  approvedBy?: string;
+  updatedAt: string;
+}
+
+export interface EmailJob {
+  emailJobId: string;
+  eventId: string;
+  recipient: string;
+  recipientName: string;
+  templateId: string;
+  category: 'transactional' | 'renewal_reminder' | 'promotional';
+  subject: string;
+  scheduledAt: string;
+  status: 'queued' | 'processing' | 'delivered' | 'bounced' | 'failed' | 'retrying';
+  attemptCount: number;
+  lastAttemptAt?: string;
+  deliveredAt?: string;
+  providerMessageId?: string;
+  failureReason?: string;
+  metadata?: Record<string, any>;
+  createdAt: string;
+}
+
+export interface RenewalAutomationConfig {
+  cadenceDays: number[];
+  campaignsIntervalMonths: number;
+  autoSuppressRenewed: boolean;
+}
+
+export interface TrainingLesson {
+  lessonId: string;
+  title: string;
+  durationMinutes: number;
+  content: string;
+  videoUrlPlaceholder?: string;
+}
+
+export interface TrainingCourse {
+  courseId: string;
+  title: string;
+  description: string;
+  audience: 'operator' | 'staff' | 'all';
+  productId?: string;
+  required: boolean;
+  lessons: TrainingLesson[];
+  assessmentQuestions: {
+    question: string;
+    options: string[];
+    correctIndex: number;
+  }[];
+  passScorePct: number;
+  status: 'published' | 'draft' | 'archived';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TrainingProgress {
+  userId: string;
+  courseId: string;
+  completedLessonIds: string[];
+  assessmentScore?: number;
+  completionStatus: 'not_started' | 'in_progress' | 'passed' | 'failed';
+  completedAt?: string;
+  acknowledgedVersion?: string;
+}
+
+export interface InsuranceClaim {
+  claimId: string;
+  claimNumber: string; // OIC-CLM-2026-0031
+  policyId: string;
+  policyNumber: string;
+  customerId: string;
+  customerName: string;
+  branchId?: string;
+  incidentDate: string;
+  incidentLocation: string;
+  description: string;
+  estimatedLossETB: number;
+  uploadedEvidenceIds: string[];
+  claimStatus: 'submitted' | 'under_investigation' | 'surveyor_assigned' | 'approved' | 'settled' | 'declined';
+  assignedAdjusterId?: string;
+  adjudicationNotes?: string;
+  settlementAmountETB?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BusinessReport {
+  reportId: string;
+  title: string;
+  reportType: 'production_summary' | 'claims_register' | 'financial_settlements' | 'branch_performance' | 'takaful_fund' | 'agri_micro_outreach';
+  periodLabel: string;
+  generatedBy: string;
+  generatedByUid: string;
+  branchScope?: string;
+  format: 'csv' | 'json' | 'print';
+  metricsSnapshot: Record<string, number | string>;
+  createdAt: string;
+}
+
+export interface AuditLogEntry {
+  auditId: string;
+  actorUid: string;
+  actorName: string;
+  actorRole: UserRole;
+  action: string;
+  resourceType: 'user' | 'customer' | 'application' | 'quotation' | 'policy' | 'document' | 'payment' | 'product' | 'branch' | 'department' | 'report' | 'claim';
+  resourceId: string;
+  branchId?: string;
+  timestamp: string;
+  reason?: string;
+  metadata?: Record<string, any>;
+  correlationId: string;
+}
+
+export interface NewsletterSubscriber {
+  subscriberId: string;
+  email: string;
+  fullName?: string;
+  frequency: 'weekly' | 'monthly' | 'breaking_announcements';
+  status: 'active' | 'unsubscribed';
+  subscribedAt: string;
+  source: 'footer_signup' | 'admin_manual' | 'customer_portal';
+}
+
+export interface AdminUploadedDocument {
+  id: string;
+  title: string;
+  productId?: string;
+  productName?: string;
+  category: 'policy_wording' | 'proposal_form' | 'claim_guide' | 'annual_report' | 'governance' | 'brochure' | 'regulatory_filing';
+  fileType: 'pdf' | 'doc' | 'sheet';
+  fileSize: string;
+  uploadDate: string;
+  downloadUrl?: string;
+  description: string;
+  uploadedBy: string;
+  version: string;
+  isPublic: boolean;
+  contentSummary?: string;
+  sections?: { heading: string; body: string }[];
+}
+
+export interface SiteCmsConfig {
+  configId?: string;
+  motto: string;
+  mottoOromo: string;
+  mottoAmharic: string;
+  vision: string;
+  mission: string;
+  capitalNotice: string;
+  headOfficeAddress: string;
+  headOfficePhone: string;
+  headOfficeFax: string;
+  headOfficeEmail: string;
+  claimsPhone: string;
+  emergencyHelpline: string;
+  activeAlertBanner: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export interface NewsArticle {
+  id: string;
+  tag: string;
+  title: string;
+  date: string;
+  summary: string;
+  category: 'announcements' | 'news' | string;
+  image: string;
+  isFeatured: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SecurityEventRecord {
+  eventId: string;
+  uid: string;
+  eventType: string;
+  provider: string;
+  outcome: 'success' | 'failure' | 'blocked';
+  timestamp: string;
+  metadata?: Record<string, string | boolean>;
+}
+
+export type SearchEntityCategory =
+  | 'policy'
+  | 'customer'
+  | 'application'
+  | 'claim'
+  | 'payment'
+  | 'user'
+  | 'operator'
+  | 'staff'
+  | 'product'
+  | 'branch'
+  | 'department'
+  | 'document'
+  | 'audit'
+  | 'subscriber';
+
+export interface GlobalSearchHit {
+  id: string;
+  category: SearchEntityCategory;
+  title: string;
+  subtitle: string;
+  status?: string;
+  meta: string;
+  timestamp?: string;
+  score: number;
+  record: any;
+}
